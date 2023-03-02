@@ -676,10 +676,14 @@ func CmdAdd(args *skel.CmdArgs, exec invoke.Exec, kubeClient *k8s.ClientInfo) (c
 		if deleteV4gateway || deleteV6gateway {
 			err = netutils.DeleteDefaultGW(args.Netns, ifName)
 			if err != nil {
+				// rollback
+				_ = delPlugins(exec, nil, args, k8sArgs, n.Delegates, idx, n.RuntimeConfig, n)
 				return nil, cmdErr(k8sArgs, "error deleting default gateway: %v", err)
 			}
 			err = netutils.DeleteDefaultGWCache(n.CNIDir, rt, netName, ifName, deleteV4gateway, deleteV6gateway)
 			if err != nil {
+				// rollback
+				_ = delPlugins(exec, nil, args, k8sArgs, n.Delegates, idx, n.RuntimeConfig, n)
 				return nil, cmdErr(k8sArgs, "error deleting default gateway in cache: %v", err)
 			}
 		}
@@ -688,10 +692,14 @@ func CmdAdd(args *skel.CmdArgs, exec invoke.Exec, kubeClient *k8s.ClientInfo) (c
 		if adddefaultgateway {
 			err = netutils.SetDefaultGW(args.Netns, ifName, *delegate.GatewayRequest)
 			if err != nil {
+				// rollback
+				_ = delPlugins(exec, nil, args, k8sArgs, n.Delegates, idx, n.RuntimeConfig, n)
 				return nil, cmdErr(k8sArgs, "error setting default gateway: %v", err)
 			}
 			err = netutils.AddDefaultGWCache(n.CNIDir, rt, netName, ifName, *delegate.GatewayRequest)
 			if err != nil {
+				// rollback
+				_ = delPlugins(exec, nil, args, k8sArgs, n.Delegates, idx, n.RuntimeConfig, n)
 				return nil, cmdErr(k8sArgs, "error setting default gateway in cache: %v", err)
 			}
 		}
@@ -715,6 +723,8 @@ func CmdAdd(args *skel.CmdArgs, exec invoke.Exec, kubeClient *k8s.ClientInfo) (c
 			if !types.CheckSystemNamespaces(string(k8sArgs.K8S_POD_NAME), n.SystemNamespaces) {
 				delegateNetStatus, err := nadutils.CreateNetworkStatus(tmpResult, delegate.Name, delegate.MasterPlugin, devinfo)
 				if err != nil {
+					// rollback
+					_ = delPlugins(exec, nil, args, k8sArgs, n.Delegates, idx, n.RuntimeConfig, n)
 					return nil, cmdErr(k8sArgs, "error setting network status: %v", err)
 				}
 
@@ -731,6 +741,8 @@ func CmdAdd(args *skel.CmdArgs, exec invoke.Exec, kubeClient *k8s.ClientInfo) (c
 		if !types.CheckSystemNamespaces(string(k8sArgs.K8S_POD_NAME), n.SystemNamespaces) {
 			err = k8s.SetNetworkStatus(kubeClient, k8sArgs, netStatus, n)
 			if err != nil {
+				// rollback
+				_ = delPlugins(exec, nil, args, k8sArgs, n.Delegates, len(n.Delegates)-1, n.RuntimeConfig, n)
 				if strings.Contains(err.Error(), "failed to query the pod") {
 					return nil, cmdErr(k8sArgs, "error setting the networks status, pod was already deleted: %v", err)
 				}
