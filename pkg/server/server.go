@@ -251,6 +251,7 @@ func (s *Server) handleCNIRequest(r *http.Request) ([]byte, error) {
 	if err := json.Unmarshal(b, &cr); err != nil {
 		return nil, err
 	}
+	logging.Verbosef("Received CNI request %+v", cr)
 	cmdType, cniCmdArgs, err := extractCniData(&cr, s.serverConfig)
 	if err != nil {
 		return nil, fmt.Errorf("could not extract the CNI command args: %w", err)
