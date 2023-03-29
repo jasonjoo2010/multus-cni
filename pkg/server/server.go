@@ -242,7 +242,7 @@ func newCNIServer(rundir string, kubeClient *k8s.ClientInfo, exec invoke.Exec, s
 	return s, nil
 }
 
-func (s *Server) handleCNIRequest(r *http.Request) ([]byte, error) {
+func (s *Server) handleCNIRequest(r *http.Request) (result []byte, err error) {
 	var cr api.Request
 	b, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -252,6 +252,15 @@ func (s *Server) handleCNIRequest(r *http.Request) ([]byte, error) {
 		return nil, err
 	}
 	logging.Verbosef("Received CNI request %+v", cr)
+	defer func() {
+		logging.Verbosef("Finished CNI request %+v", cr)
+		if e := recover(); e != nil {
+			logging.Errorf("Handle CNI request panic with %v", e)
+			err = fmt.Errorf("panic: %v", e)
+		} else if err != nil {
+			logging.Errorf("Handle CNI request failed %v", err)
+		}
+	}()
 	cmdType, cniCmdArgs, err := extractCniData(&cr, s.serverConfig)
 	if err != nil {
 		return nil, fmt.Errorf("could not extract the CNI command args: %w", err)
@@ -262,12 +271,12 @@ func (s *Server) handleCNIRequest(r *http.Request) ([]byte, error) {
 		return nil, fmt.Errorf("could not extract the kubernetes runtime args: %w", err)
 	}
 
-	result, err := s.HandleCNIRequest(cmdType, k8sArgs, cniCmdArgs, s.exec, s.kubeclient)
+	result, err = s.HandleCNIRequest(cmdType, k8sArgs, cniCmdArgs, s.exec, s.kubeclient)
 	if err != nil {
 		// Prefix error with request information for easier debugging
 		return nil, fmt.Errorf("%+v %v", cniCmdArgs, err)
 	}
-	return result, nil
+	return
 }
 
 func (s *Server) handleDelegateRequest(r *http.Request) ([]byte, error) {
